@@ -21,15 +21,18 @@ This project analyzes passenger reviews of the BTS Skytrain (Bangkok, Thailand) 
 ## Repository Structure
 
 ```
-├── README.md                                    ← You are here
+├── README.md                                      ← You are here
 ├── BTS_Aspect_Based_Sentiment_Labeling_Documentation.md
-│                                                  ← Full labeling methodology & results
-├── label_bts_reviews.py                          ← Automated aspect + sentiment labeling script
+│                                                    ← Full labeling methodology & results
+├── label_bts_reviews.py                            ← Automated aspect + sentiment labeling script
+├── merge_raw.py                                     ← Raw file merge pipeline (Reddit + TripAdvisor)
 │
-├── DATA/
-│   └── bts_merged_reviews.csv                    ← Raw input (13,073 rows)
+├── raw_data/
+│   ├── bts_reddit_reviews_expanded_nlp.csv          ← Reddit source (2,000 rows)
+│   └── 11k_bts_skytrain_reviews.csv                ← TripAdvisor source (11,073 rows)
 │
-├── bts_labeled_reviews.csv                       ← Labeled output (13,072 rows × 45 cols)
+├── bts_merged_reviews_v2.csv                       ← Merged raw data (13,073 rows × 29 cols)
+├── bts_labeled_reviews_v2.csv                      ← Fully labeled dataset (13,073 rows × 44 cols)
 └── BTS_Aspect_Based_Sentiment_Labeling_Documentation.md
 ```
 
@@ -37,11 +40,17 @@ This project analyzes passenger reviews of the BTS Skytrain (Bangkok, Thailand) 
 
 ## Dataset
 
+The project uses two raw data sources merged into a single dataset:
+
+| Source File | Category | Records | Description |
+|---|---|---|---|
+| `raw_data/bts_reddit_reviews_expanded_nlp.csv` | `reddit` | 2,000 | Reddit posts mentioning BTS Skytrain |
+| `raw_data/11k_bts_skytrain_reviews.csv` | `tripadvisor` | 11,073 | TripAdvisor BTS Skytrain reviews |
+| **Merged total** | — | **13,073** | — |
+
 | Property | Value |
 |---|---|
-| **Source** | TripAdvisor + Reddit |
-| **Raw reviews** | 13,073 |
-| **After cleaning** | 13,072 |
+| **Output** | `bts_merged_reviews_v2.csv` (raw) / `bts_labeled_reviews_v2.csv` (labeled) |
 | **Languages** | English, Thai, others |
 | **Rating scale** | 1–5 stars |
 
@@ -139,15 +148,23 @@ Safety & Security                57  ( 0.4%)
 pip install pandas
 ```
 
-### 2. Run the labeling script
+### 2. Merge raw files (optional — v2 files are pre-built)
+
+```bash
+python merge_raw.py
+```
+
+Outputs `bts_merged_reviews_v2.csv` and `bts_labeled_reviews_v2.csv`.
+
+### 3. Run the labeling script on a fresh merge
 
 ```bash
 python label_bts_reviews.py
 ```
 
-Outputs `bts_labeled_reviews.csv`.
+> Reads `bts_merged_reviews.csv` by default. Edit the `INPUT` variable at the top of `label_bts_reviews.py` to point to a different file.
 
-### 3. Load and explore the labeled data
+### 4. Load and explore the labeled data
 
 ```python
 import pandas as pd
@@ -245,8 +262,11 @@ See `BTS_Aspect_Based_Sentiment_Labeling_Documentation.md` for the full methodol
 
 | File | Description |
 |------|-------------|
-| `bts_merged_reviews.csv` | Raw dataset (13,073 rows, 29 columns) |
-| `bts_labeled_reviews.csv` | Labeled dataset (13,072 rows, 45 columns) |
+| `raw_data/bts_reddit_reviews_expanded_nlp.csv` | Raw Reddit source (2,000 rows) |
+| `raw_data/11k_bts_skytrain_reviews.csv` | Raw TripAdvisor source (11,073 rows) |
+| `bts_merged_reviews_v2.csv` | Merged raw dataset (13,073 rows, 29 cols) |
+| `bts_labeled_reviews_v2.csv` | Fully labeled dataset (13,073 rows, 44 cols) |
 | `label_bts_reviews.py` | Automated labeling script |
-| `BTS_Aspect_Based_Sentiment_Labeling_Documentation.md` | Full methodology & results documentation |
+| `merge_raw.py` | Raw file merge pipeline |
+| `BTS_Aspect_Based_Sentiment_Labeling_Documentation.md` | Full methodology & results |
 | `README.md` | This file |
