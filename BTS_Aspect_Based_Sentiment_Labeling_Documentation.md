@@ -40,12 +40,23 @@ This document describes the automated aspect-based sentiment labeling pipeline a
 
 | Property | Value |
 |---|---|
-| **Input File** | `bts_merged_reviews.csv` |
+| **Input File** | `bts_merged_reviews_v2.csv` |
 | **Total Raw Rows** | 13,073 |
 | **Total Columns** | 29 |
 | **After Filtering** | 13,072 rows (1 row removed: no usable text) |
-| **Sources** | TripAdvisor (10,073), Reddit (2,000) |
+| **Sources** | TripAdvisor (11,073), Reddit (2,000) |
 | **BTS Lines** | Sukhumvit Line, Silom Line, Both Lines |
+
+### 2.2 Rating vs. Upvotes Decoupling
+
+> ⚠️ **Critical design note:** Reddit has no native star-rating system. A post's numerical "rating" was never meant to be upvotes — it is a **community agreement signal**. A complaint with 5,000 upvotes would incorrectly look like a 5-star positive review if upvotes were used as the rating.
+>
+> The crawler (`bts_scraper.py`) addresses this by running **VADER sentiment analysis** on the post text to generate a proper **1–5 star rating** before saving to CSV. The original upvote count is preserved in `like_count`.
+
+| Field | Reddit Source | TripAdvisor Source |
+|-------|-------------|-------------------|
+| `review_rating` | NLP-derived (VADER → 1–5 stars) | Platform star rating |
+| `like_count` | Reddit upvotes (0–1,353 range) | Helpful votes count |
 
 ### 2.2 Original Columns
 
@@ -61,15 +72,25 @@ review_link, entity_link, source
 
 ### 2.3 Rating Distribution (Original 1–5 Stars)
 
+#### TripAdvisor (platform stars)
 | Rating | Count | Percentage |
 |--------|-------|------------|
-| ⭐ 1 | 194 | 1.5% |
-| ⭐⭐ 2 | 211 | 1.6% |
-| ⭐⭐⭐ 3 | 849 | 6.5% |
-| ⭐⭐⭐⭐ 4 | 3,470 | 26.5% |
-| ⭐⭐⭐⭐⭐ 5 | 8,348 | 63.9% |
+| ⭐ 5 | 6,915 | 62.5% |
+| ⭐⭐⭐⭐ 4 | 3,269 | 29.5% |
+| ⭐⭐⭐ 3 | 693 | 6.3% |
+| ⭐⭐ 2 | 111 | 1.0% |
+| ⭐ 1 | 85 | 0.8% |
 
-> The dataset is heavily skewed toward positive ratings (5-star reviews represent ~64% of all entries), reflecting the self-selection bias common in public review platforms.
+#### Reddit (VADER NLP sentiment → stars)
+| Rating | Count | Percentage |
+|--------|-------|------------|
+| ⭐ 5 | 1,434 | 71.7% |
+| ⭐⭐⭐⭐ 4 | 201 | 10.1% |
+| ⭐⭐⭐ 3 | 156 | 7.8% |
+| ⭐⭐ 2 | 100 | 5.0% |
+| ⭐ 1 | 109 | 5.5% |
+
+> The dataset is skewed toward positive ratings, reflecting the self-selection bias common in public review platforms. Reddit's VADER-distributed ratings show a wider spread (including more 1–2 star complaints) than TripAdvisor's platform stars.
 
 ---
 
@@ -87,7 +108,7 @@ The pipeline generates **4 categories of labels** for each review:
 ├─────────────────────────────────────────────────────────┤
 │  OVERALL SENTIMENT                                       │
 │  Holistic sentiment of the entire review                 │
-│  Values: Positive / Neutral / Negative / Mixed         │
+│  Values: Positive / Neutral / Negative                 │
 ├─────────────────────────────────────────────────────────┤
 │  ASPECT LABELS (Multi-Label)                            │
 │  Which service aspects are discussed?                   │
@@ -95,7 +116,7 @@ The pipeline generates **4 categories of labels** for each review:
 ├─────────────────────────────────────────────────────────┤
 │  PER-ASPECT SENTIMENT                                    │
 │  Sentiment toward each detected aspect                  │
-│  Values: Positive / Neutral / Negative / Not Mentioned  │
+│  Values: Positive / Neutral / Negative                 │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -304,7 +325,7 @@ The overall sentiment is determined by a **multi-signal approach** combining key
 │  STEP 3: Compare counts                               │
 │          pos > neg+1 → Positive                        │
 │          neg > pos+1 → Negative                       │
-│          pos == neg  → Mixed (if both > 0)            │
+│          pos == neg  → Neutral (if both > 0)          │
 │          else        → Rating Fallback                │
 ├────────────────────────────────────────────────────────┤
 │  STEP 4: Rating Fallback (if keywords inconclusive)  │
@@ -332,9 +353,9 @@ Negation words are detected to correctly classify negative sentiment expressions
 - "don't have to wait" → treated as positive
 - "hardly crowded" → treated as positive
 
-### 5.4 Mixed Sentiment Detection
+### 5.4 Qualifier-Based Sentiment Handling
 
-Reviews containing both positive and negative keywords with qualifier words (but, however, although) are flagged as **Mixed** when positive and negative counts are roughly equal.
+Reviews containing both positive and negative keywords with qualifier words (but, however, although) are handled by the qualifier logic. When positive and negative keyword counts are approximately equal, the sentiment defaults to **Neutral**.
 
 ---
 
@@ -354,10 +375,9 @@ Reviews containing both positive and negative keywords with qualifier words (but
 
 | Sentiment | Count | Percentage | Bar |
 |-----------|-------|------------|-----|
-| 😊 Positive | 11,246 | 86.0% | ████████████████████████████████ |
-| 🤹 Mixed | 882 | 6.7% | ███ |
-| 😠 Negative | 555 | 4.2% | ██ |
-| 😐 Neutral | 389 | 3.0% | █ |
+| Positive | 11,246 | 86.0% | ████████████████████████████████ |
+| Negative | 555 | 4.2% | ██ |
+| Neutral | 389 | 3.0% | █ |
 
 > The high positive ratio aligns with the rating distribution (64% are 5-star ratings) and reflects that BTS Skytrain is generally well-regarded by passengers.
 
@@ -384,7 +404,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 1,250 | 9.6% |
 | Neutral | 259 | 2.0% |
 | Negative | 61 | 0.5% |
-| Not Mentioned | 11,502 | 88.0% |
 
 #### Punctuality & Reliability
 | Sentiment | Count | % |
@@ -392,7 +411,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 724 | 5.5% |
 | Neutral | 850 | 6.5% |
 | Negative | 187 | 1.4% |
-| Not Mentioned | 11,311 | 86.5% |
 
 #### Crowding & Comfort
 | Sentiment | Count | % |
@@ -400,7 +418,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 1,040 | 8.0% |
 | Neutral | 1,548 | 11.8% |
 | Negative | 1,030 | 7.9% |
-| Not Mentioned | 9,454 | 72.3% |
 
 #### Cleanliness & Hygiene
 | Sentiment | Count | % |
@@ -408,7 +425,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 3,125 | 23.9% |
 | Neutral | 190 | 1.5% |
 | Negative | 49 | 0.4% |
-| Not Mentioned | 9,708 | 74.3% |
 
 #### Fare & Payment System
 | Sentiment | Count | % |
@@ -416,7 +432,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 3,773 | 28.9% |
 | Neutral | 2,561 | 19.6% |
 | Negative | 526 | 4.0% |
-| Not Mentioned | 6,212 | 47.5% |
 
 #### Safety & Security
 | Sentiment | Count | % |
@@ -424,7 +439,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 142 | 1.1% |
 | Neutral | 225 | 1.7% |
 | Negative | 68 | 0.5% |
-| Not Mentioned | 12,637 | 96.7% |
 
 #### Route Coverage & Connectivity
 | Sentiment | Count | % |
@@ -432,7 +446,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 2,183 | 16.7% |
 | Neutral | 2,680 | 20.5% |
 | Negative | 284 | 2.2% |
-| Not Mentioned | 7,925 | 60.6% |
 
 #### Signage & Navigation
 | Sentiment | Count | % |
@@ -440,7 +453,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 804 | 6.2% |
 | Neutral | 929 | 7.1% |
 | Negative | 87 | 0.7% |
-| Not Mentioned | 11,252 | 86.1% |
 
 #### Infrastructure & Facilities
 | Sentiment | Count | % |
@@ -448,7 +460,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 3,314 | 25.4% |
 | Neutral | 3,005 | 23.0% |
 | Negative | 430 | 3.3% |
-| Not Mentioned | 6,323 | 48.4% |
 
 #### Overall Experience
 | Sentiment | Count | % |
@@ -456,7 +467,6 @@ Reviews containing both positive and negative keywords with qualifier words (but
 | Positive | 7,471 | 57.2% |
 | Neutral | 712 | 5.4% |
 | Negative | 275 | 2.1% |
-| Not Mentioned | 4,614 | 35.3% |
 
 ### 6.5 Key Insights from Labeling
 
@@ -466,7 +476,7 @@ Reviews containing both positive and negative keywords with qualifier words (but
 
 3. **Cleanliness & Hygiene** receives predominantly positive sentiment (23.9%) — the BTS is perceived as clean relative to other transport options in Bangkok.
 
-4. **Safety & Security** is rarely explicitly mentioned (96.7% Not Mentioned) — this could indicate passengers feel generally safe, or they simply don't think to comment on it.
+4. **Safety & Security** is rarely explicitly mentioned — passengers likely feel generally safe without commenting on it.
 
 5. **Infrastructure** has a high mention rate (48.4%) with strong positive sentiment for air conditioning, balanced by neutral/negative comments about escalator breakdowns and platform gaps.
 
@@ -487,7 +497,7 @@ bts_labeled_reviews.csv
 | Column Name | Type | Description |
 |-------------|------|-------------|
 | `relevant` | Boolean | `True` if review discusses BTS transit; `False` if off-topic |
-| `overall_sentiment` | String | Positive / Neutral / Negative / Mixed |
+| `overall_sentiment` | String | Positive / Neutral / Negative |
 | `primary_aspect` | String | The most-mentioned aspect in the review |
 | `aspects_detected` | String | Comma-separated list of all detected aspect names |
 | `aspect_count` | Integer | Number of distinct aspects detected (0–10) |
@@ -581,7 +591,7 @@ print(f"Complex multi-aspect reviews: {len(df_complex):,}")
 | Limitation | Impact | Mitigation |
 |------------|--------|------------|
 | **Rule-based keyword matching** | May miss context-dependent meanings; no deep semantic understanding | Keyword lists expanded with Thai/multilingual terms |
-| **Rating as sentiment fallback** | 5-star ratings labeled as Positive even without positive keywords | Mixed/masked sentiment detection via qualifiers |
+| **Rating as sentiment fallback** | 5-star ratings labeled as Positive even without positive keywords | Sentiment detection via keyword frequency + rating fallback |
 | **Off-topic reviews (11.7%)** | Some reviews mention BTS only as a location marker | `relevant` flag enables filtering |
 | **English bias in keywords** | Non-English reviews may have fewer aspects detected | Thai keywords added; language field available |
 | **No aspect weighting** | All detected aspects treated equally | `primary_aspect` and `aspect_count` provide structure |
@@ -623,7 +633,7 @@ broken, unsafe, dangerous, difficult, complicated, confusing, filthy,
 smelly, problem, issue, avoid, never again, waste, useless, pathetic
 ```
 
-### Qualifier Words (Mixed Sentiment Detection)
+### Qualifier Words (Sentiment Handling)
 ```
 but, however, although, though, except, aside from, apart from, besides,
 still, yet, unfortunately, sadly, the only problem, only issue,

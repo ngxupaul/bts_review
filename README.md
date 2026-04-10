@@ -48,6 +48,15 @@ The project uses two raw data sources merged into a single dataset:
 | `raw_data/11k_bts_skytrain_reviews.csv` | `tripadvisor` | 11,073 | TripAdvisor BTS Skytrain reviews |
 | **Merged total** | — | **13,073** | — |
 
+### Data Source Notes
+
+| Field | Reddit Source | TripAdvisor Source |
+|-------|-------------|-------------------|
+| `review_rating` | NLP-derived (VADER sentiment → 1–5 stars) | Platform star rating |
+| `like_count` | Reddit upvotes (community agreement signal) | Helpful votes count |
+
+> **Why this matters:** A Reddit post like *"The BTS Skytrain is a terrible nightmare!"* with 5,000 upvotes is a **highly agreed-upon complaint** — not a 5-star positive review. The crawler (`bts_scraper.py`) runs VADER sentiment analysis on the post text to generate a proper 1–5 star rating, while upvotes are preserved separately in `like_count` for community agreement analysis.
+
 | Property | Value |
 |---|---|
 | **Output** | `bts_merged_reviews_v2.csv` (raw) / `bts_labeled_reviews_v2.csv` (labeled) |
@@ -56,13 +65,23 @@ The project uses two raw data sources merged into a single dataset:
 
 ### Rating Distribution
 
+#### TripAdvisor (NLP: VADER Sentiment)
 | Rating | Count | Share |
 |--------|-------|-------|
-| ⭐ 5 | 8,348 | 63.9% |
-| ⭐⭐⭐⭐ 4 | 3,470 | 26.5% |
-| ⭐⭐⭐ 3 | 849 | 6.5% |
-| ⭐⭐ 2 | 211 | 1.6% |
-| ⭐ 1 | 194 | 1.5% |
+| ⭐ 5 | 6,915 | 62.5% |
+| ⭐⭐⭐⭐ 4 | 3,269 | 29.5% |
+| ⭐⭐⭐ 3 | 693 | 6.3% |
+| ⭐⭐ 2 | 111 | 1.0% |
+| ⭐ 1 | 85 | 0.8% |
+
+#### Reddit (Platform Stars)
+| Rating | Count | Share |
+|--------|-------|-------|
+| ⭐ 5 | 1,434 | 71.7% |
+| ⭐⭐⭐⭐ 4 | 201 | 10.1% |
+| ⭐⭐⭐ 3 | 156 | 7.8% |
+| ⭐⭐ 2 | 100 | 5.0% |
+| ⭐ 1 | 109 | 5.5% |
 
 ---
 
@@ -74,10 +93,10 @@ The pipeline produces **4 types of labels** per review:
 ┌──────────────────────────────────────────────────────────┐
 │  relevant                 Is the review BTS-specific?  │
 │  overall_sentiment        Positive / Neutral / Negative │
-│  primary_aspect            Most-mentioned aspect         │
-│  aspects_detected          All aspects found (multi)     │
-│  aspect_count              # of aspects (0–10)          │
-│  sentiment_<aspect>         Per-aspect sentiment         │
+│  primary_aspect           Most-mentioned aspect          │
+│  aspects_detected         All aspects found (multi)     │
+│  aspect_count             # of aspects (0–10)           │
+│  sentiment_<aspect>        Per-aspect sentiment          │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -103,7 +122,6 @@ The pipeline produces **4 types of labels** per review:
 ### Sentiment Distribution
 ```
 Positive     11,246  (86.0%)  ████████████████████████████████
-Mixed            882  ( 6.7%)  ███
 Negative         555  ( 4.2%)  ██
 Neutral          389  ( 3.0%)  █
 ```
@@ -124,17 +142,17 @@ Safety & Security                57  ( 0.4%)
 
 ### Per-Aspect Sentiment Highlights
 
-| Aspect | Positive | Neutral | Negative | Not Mentioned |
-|--------|----------|---------|----------|---------------|
-| Overall Experience | 57.2% | 5.4% | 2.1% | 35.3% |
-| Fare & Payment | 28.9% | 19.6% | 4.0% | 47.5% |
-| Infrastructure | 25.4% | 23.0% | 3.3% | 48.4% |
-| Cleanliness & Hygiene | 23.9% | 1.5% | 0.4% | 74.3% |
-| Route Coverage | 16.7% | 20.5% | 2.2% | 60.6% |
-| Staff & Customer Service | 9.6% | 2.0% | 0.5% | 88.0% |
-| Crowding & Comfort | 8.0% | 11.8% | 7.9% | 72.3% |
-| Punctuality & Reliability | 5.5% | 6.5% | 1.4% | 86.5% |
-| Safety & Security | 1.1% | 1.7% | 0.5% | 96.7% |
+| Aspect | Positive | Neutral | Negative |
+|--------|----------|---------|----------|
+| Overall Experience | 57.2% | 5.4% | 2.1% |
+| Fare & Payment | 28.9% | 19.6% | 4.0% |
+| Infrastructure | 25.4% | 23.0% | 3.3% |
+| Cleanliness & Hygiene | 23.9% | 1.5% | 0.4% |
+| Route Coverage | 16.7% | 20.5% | 2.2% |
+| Staff & Customer Service | 9.6% | 2.0% | 0.5% |
+| Crowding & Comfort | 8.0% | 11.8% | 7.9% |
+| Punctuality & Reliability | 5.5% | 6.5% | 1.4% |
+| Safety & Security | 1.1% | 1.7% | 0.5% |
 
 > **Average aspects detected per review: 3.04** — most reviews discuss multiple service dimensions simultaneously.
 
@@ -193,7 +211,7 @@ for col in aspect_cols:
 | Column | Type | Description |
 |--------|------|-------------|
 | `relevant` | bool | `True` = BTS service review; `False` = off-topic |
-| `overall_sentiment` | str | Positive / Neutral / Negative / Mixed |
+| `overall_sentiment` | str | Positive / Neutral / Negative |
 | `primary_aspect` | str | Most-mentioned aspect name |
 | `aspects_detected` | str | Comma-separated list of all detected aspects |
 | `aspect_count` | int | Number of distinct aspects found (0–10) |
@@ -231,7 +249,7 @@ See `BTS_Aspect_Based_Sentiment_Labeling_Documentation.md` for the full methodol
 1. **Fare & Payment** is the most-discussed aspect (20.1%) — ticket machine usability and payment limitations (e.g., no credit card top-up) generate strong passenger reactions
 2. **Crowding** is highly polarized — passengers recognize peak-hour crowding as inevitable but still express frustration
 3. **Cleanliness** receives predominantly positive sentiment — BTS is seen as clean relative to other Bangkok transport options
-4. **Safety** is rarely explicitly mentioned (96.7% Not Mentioned) — likely indicates passengers feel generally safe
+4. **Safety** is rarely explicitly mentioned — passengers likely feel generally safe without commenting on it
 5. **86% of reviews are Positive** — consistent with the 5-star rating skew; low-rated reviews are disproportionately informative for service improvement
 
 ---
@@ -251,7 +269,7 @@ See `BTS_Aspect_Based_Sentiment_Labeling_Documentation.md` for the full methodol
 - [ ] Fine-tune a **BERT/RoBERTa ABSA model** for higher accuracy
 - [ ] Add **aspect term extraction** (e.g., identify "ticket machine at Siam" as a term)
 - [ ] Implement **aspect importance weighting** based on sentence prominence
-- [ ] Extend to **5-class sentiment intensity** (Very Positive → Very Negative)
+- [ ] Extend to **5-class sentiment intensity** (Very Positive / Positive / Neutral / Negative / Very Negative)
 - [ ] Build **aspect correlation matrix** (do crowding complaints co-occur with punctuality issues?)
 - [ ] **Temporal analysis** — track how aspect sentiments evolve over time
 - [ ] **Manual validation** — label 500–1000 samples for precision/recall benchmarking

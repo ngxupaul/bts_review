@@ -207,7 +207,7 @@ def detect_sentiment(text: str, rating: int) -> str:
     elif neg_count > pos_count + 1:
         return "Negative"
     elif pos_count == neg_count and pos_count > 0:
-        return "Mixed"       # equal positive and negative keywords → Mixed
+        return "Neutral"       # equal positive and negative keywords → Neutral
     else:
         return rating_sentiment   # fallback to rating
 
@@ -223,7 +223,7 @@ def extract_aspect_sentiment(text: str, aspect: str) -> str:
         if any(kw in s for kw in keywords)
     ]
     if not aspect_sentences:
-        return "Not Mentioned"
+        return "Neutral"
 
     joined = " ".join(aspect_sentences)
     pos = sum(1 for w in POSITIVE_WORDS if w in joined)
@@ -341,7 +341,7 @@ def main():
         counts = df_labeled[col].value_counts()
         total = counts.sum()
         print(f"\n  {display_name}:")
-        for sent in ["Positive", "Neutral", "Negative", "Not Mentioned"]:
+        for sent in ["Positive", "Neutral", "Negative"]:
             cnt = counts.get(sent, 0)
             pct = cnt / total * 100 if total else 0
             bar = "█" * int(pct / 2)
